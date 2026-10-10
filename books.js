@@ -104,8 +104,11 @@ export class Books {
   // Returns { state, invoice, candidates, note }.
   match(receipt, taken = new Set(), tolerance = 1.0) {
     const hint = " - choose or create the invoice";
-    const done = this.invoices.find((i) => i.etimsNo === receipt.etimsNo);
-    if (done) return { state: "done", invoice: done, candidates: [], note: "Already on invoice " + (done.reference || done.date) };
+    const doneAll = this.invoices.filter((i) => i.etimsNo === receipt.etimsNo);
+    if (doneAll.length) {
+      return { state: "done", invoice: doneAll[0], invoices: doneAll, candidates: [],
+        note: "Already on invoice " + doneAll.map((i) => i.reference || i.date).join(", ") };
+    }
     const cands = this.invoices.filter((i) => !i.etimsNo && !taken.has(i.key)
       && Math.abs(i.total - receipt.total) <= tolerance);
     if (!cands.length) {
@@ -120,6 +123,22 @@ export class Books {
       return { state: "choose", invoice: null, candidates: mine, note: "More than one invoice fits" + hint };
     }
     return { state: "ready", invoice: mine[0], candidates: mine, note: "" };
+  }
+
+  // One receipt may cover several invoices of the same buyer (same customer or same PIN).
+  // `error` blocks the choice; `warning` is something to confirm (the invoices do not add up to the receipt).
+  checkGroup(receipt, invoices, tolerance = 1.0) {
+    const first = invoices[0];
+    const same = invoices.every((i) => i.customer === first.customer
+      || (i.customerPin && i.customerPin === first.customerPin));
+    if (!same) {
+      return { error: "These invoices belong to different customers. A receipt carries one buyer PIN, so each customer needs its own receipt." };
+    }
+    const sum = round2(invoices.reduce((t, i) => t + i.total, 0));
+    if (Math.abs(sum - receipt.total) > tolerance) {
+      return { warning: `The ${invoices.length} invoices add up to KES ${money(sum)} but the receipt is KES ${money(receipt.total)}.` };
+    }
+    return {};
   }
 
   etimsStrings(receipt) {

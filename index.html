@@ -76,9 +76,10 @@
     <label for="search">Search invoices</label>
     <input type="text" id="search" class="grow" placeholder="reference, customer, date or amount">
   </div>
-  <select id="choices" size="8"></select>
+  <select id="choices" size="8" multiple></select>
+  <p class="muted">If one receipt covers several invoices of the same customer, hold Ctrl (or Cmd) and select them all.</p>
   <div class="row">
-    <button class="primary" id="useInvoice">Use the selected invoice</button>
+    <button class="primary" id="useInvoice">Use the selected invoice(s)</button>
     <button id="cancelChoose">Cancel</button>
   </div>
   <fieldset>
@@ -176,8 +177,8 @@ async function ensureBooks() {
 }
 
 function taken(except) {
-  return new Set(rows.filter((r) => r !== except && r.invoice && r.state !== "choose" && r.state !== "none")
-    .map((r) => r.invoice.key));
+  return new Set(rows.filter((r) => r !== except && r.state !== "choose" && r.state !== "none")
+    .flatMap((r) => (r.invoices || []).map((i) => i.key)));
 }
 
 async function readPdf(file) {
@@ -215,10 +216,12 @@ function render() {
       create: "Will create a new invoice", applied: r.result || "Copied to Manager" }[r.state] || r.note;
     const cls = READY.includes(r.state) ? "ready" : (r.state === "applied" || r.state === "done") ? "done" : "problem";
     const shown = r.state === "create" ? `NEW invoice  |  project: ${r.create.projectName}`
-      : r.invoice && books ? books.describe(r.invoice) : "";
+      : books ? (r.invoices || []).map((i) => books.describe(i)).join("\n") : "";
+    const shownCell = cell(shown);
+    shownCell.style.whiteSpace = "pre-line";
     tr.append(cell(r.file), cell(r.receipt ? r.receipt.etimsNo : ""),
       cell(r.receipt ? `${r.receipt.buyerName} (${r.receipt.buyerPin})` : ""),
-      cell(r.receipt ? money(r.receipt.total) : "", "num"), cell(shown), cell(label, cls));
+      cell(r.receipt ? money(r.receipt.total) : "", "num"), shownCell, cell(label, cls));
     const action = document.createElement("td");
     if (r.receipt && r.state !== "applied" && r.state !== "done") {
       const btn = document.createElement("button");
@@ -253,7 +256,8 @@ $("files").addEventListener("change", async (e) => {
         if (known.has(receipt.etimsNo)) continue;
         known.add(receipt.etimsNo);
         const m = b.match(receipt, taken());
-        rows.push({ file: file.name, receipt, state: m.state, invoice: m.invoice, candidates: m.candidates, note: m.note });
+        rows.push({ file: file.name, receipt, state: m.state, invoices: m.invoices || (m.invoice ? [m.invoice] : []),
+          candidates: m.candidates, note: m.note });
       } catch (err) {
         rows.push({ file: file.name, receipt: null, state: "none", note: err.message });
       }
@@ -293,15 +297,15 @@ function openChooser(row) {
 
 $("search").addEventListener("input", fillChoices);
 $("cancelChoose").addEventListener("click", () => $("chooser").close());
-$("choices").addEventListener("dblclick", () => $("useInvoice").click());
 
 $("useInvoice").addEventListener("click", () => {
-  const inv = shown[$("choices").selectedIndex];
-  if (!inv) return;
+  const picked = [...$("choices").selectedOptions].map((o) => shown[Number(o.value)]).filter(Boolean);
+  if (!picked.length) return;
   const r = choosing.receipt;
-  if (Math.abs(inv.total - r.total) > 1 && !confirm(
-    `The invoice total is KES ${money(inv.total)} but the receipt is KES ${money(r.total)}.\n\nUse this invoice anyway?`)) return;
-  Object.assign(choosing, { state: "chosen", invoice: inv, create: null });
+  const check = books.checkGroup(r, picked);
+  if (check.error) { alert(check.error); return; }
+  if (check.warning && !confirm(`${check.warning}\n\nUse ${picked.length === 1 ? "this invoice" : "these invoices"} anyway?`)) return;
+  Object.assign(choosing, { state: "chosen", invoices: picked, create: null });
   $("chooser").close();
   render();
 });
@@ -310,7 +314,7 @@ $("createInvoice").addEventListener("click", () => {
   const sel = $("project");
   if (!sel.value) { alert(`Choose the project this invoice belongs to (or "${NO_PROJECT}").`); return; }
   if (!choosing.receipt.lines.length) { alert("The item lines of this receipt could not be read, so the invoice cannot be created from it."); return; }
-  Object.assign(choosing, { state: "create", invoice: null, create: {
+  Object.assign(choosing, { state: "create", invoices: [], create: {
     project: sel.value === "none" ? null : sel.value,
     projectName: sel.options[sel.selectedIndex].text, reference: $("reference").value.trim() } });
   $("chooser").close();
@@ -330,11 +334,11 @@ $("copy").addEventListener("click", async () => {
     setStatus(`Copying ${n + 1} of ${todo.length}...`);
     try {
       if (r.state === "create") {
-        r.invoice = await books.createInvoice(r.receipt, r.create);
+        r.invoices = [await books.createInvoice(r.receipt, r.create)];
         r.result = "Created in Manager";
       } else {
-        await books.apply(r.receipt, r.invoice);
-        r.result = "Copied to Manager";
+        for (const inv of r.invoices) await books.apply(r.receipt, inv);
+        r.result = r.invoices.length > 1 ? `Copied to ${r.invoices.length} invoices` : "Copied to Manager";
       }
       r.state = "applied";
       done++;
@@ -344,7 +348,7 @@ $("copy").addEventListener("click", async () => {
       r.result = err.message;
     }
     reportRows.push([r.file, r.receipt.etimsNo, r.receipt.buyerName, r.receipt.total,
-      r.invoice ? (r.invoice.reference || r.invoice.date) : "", r.result]);
+      (r.invoices || []).map((i) => i.reference || i.date).join(" + "), r.result]);
     if (r.state === "none") break; // stop at the first problem rather than carry on blind
   }
   render();

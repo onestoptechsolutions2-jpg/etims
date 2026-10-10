@@ -121,6 +121,20 @@ breakTotals = true;
 const count = db["sales-invoice"].length;
 await assert.rejects(b.createInvoice({ ...r, etimsNo: "X/15" }), /removed again/);
 assert.equal(db["sales-invoice"].length, count);
+// one receipt over two invoices of the same buyer, and the refusal for different buyers
+const rg = { ...r, etimsNo: "KRACU0200240524/20", total: 1500 };
+b.invoices.push(
+  { key: "g1", customer: "c1", customerPin: "P000000001A", total: 1000, etimsNo: "", reference: "G-1", date: "2026-08-08" },
+  { key: "g2", customer: "c1", customerPin: "P000000001A", total: 500, etimsNo: "", reference: "G-2", date: "2026-08-08" },
+  { key: "g3", customer: "c2", customerPin: "", total: 500, etimsNo: "", reference: "G-3", date: "2026-08-08" });
+const gi = (k) => b.invoices.find((i) => i.key === k);
+assert.deepEqual(b.checkGroup(rg, [gi("g1"), gi("g2")]), {});
+assert.match(b.checkGroup(rg, [gi("g1"), gi("g3")]).error, /different customers/);
+assert.match(b.checkGroup(rg, [gi("g1")]).warning, /add up to/);
+gi("g1").etimsNo = gi("g2").etimsNo = rg.etimsNo;
+m = b.match(rg);
+assert.equal(m.state, "done");
+assert.deepEqual(m.invoices.map((i) => i.key), ["g1", "g2"]);
 console.log("logic tests passed");
 
 // ----- optional: the real PDF through pdf.js, and totals against real figures -----
