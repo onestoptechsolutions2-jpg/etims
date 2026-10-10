@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>eTIMS Import</title>
+<style>
+  :root { --ink:#1f2933; --muted:#667085; --line:#d9dee5; --bg:#fff; --soft:#f5f7fa;
+          --ok:#0a6b2d; --bad:#b00020; --accent:#1f6feb; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:16px; background:var(--bg); color:var(--ink);
+         font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  h1 { font-size:18px; margin:0 0 4px; }
+  p { margin:0 0 12px; }
+  .muted { color:var(--muted); }
+  .bar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:12px 0; }
+  button, .filebtn { font:inherit; padding:7px 12px; border:1px solid var(--line); border-radius:6px;
+           background:var(--soft); color:var(--ink); cursor:pointer; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  button:disabled { opacity:.5; cursor:default; }
+  input[type=file] { display:none; }
+  input[type=text], select { font:inherit; padding:6px 8px; border:1px solid var(--line); border-radius:6px; }
+  .scroll { overflow-x:auto; border:1px solid var(--line); border-radius:8px; }
+  table { border-collapse:collapse; width:100%; min-width:860px; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { background:var(--soft); font-weight:600; white-space:nowrap; }
+  td.num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  tr:last-child td { border-bottom:0; }
+  .ready { color:var(--ok); } .problem { color:var(--bad); } .done { color:var(--muted); }
+  #status { margin:10px 0; min-height:20px; }
+  dialog { border:1px solid var(--line); border-radius:10px; padding:16px; width:min(760px,94vw); color:var(--ink); }
+  dialog::backdrop { background:rgba(0,0,0,.35); }
+  #choices { width:100%; height:210px; margin:8px 0; font:inherit; border:1px solid var(--line); border-radius:6px; }
+  fieldset { border:1px solid var(--line); border-radius:8px; margin:12px 0 0; padding:10px 12px; }
+  legend { padding:0 6px; color:var(--muted); }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .grow { flex:1 1 220px; }
+  .hidden { display:none; }
+</style>
+</head>
+<body>
+
+<section id="guide" class="hidden">
+  <h1>eTIMS Import</h1>
+  <p>This page works inside Manager. Open Manager, go to Sales Invoices, and click the
+     <b>eTIMS Import</b> button there.</p>
+  <p class="muted">To add the button: in Manager open the business, then Settings &gt; Custom Buttons &gt;
+     New Custom Button. Name: eTIMS Import. Source: Url. Endpoint: this page's address. Placement: sales-invoices.</p>
+</section>
+
+<section id="app" class="hidden">
+  <h1>eTIMS Import</h1>
+  <p class="muted">Add the eTIMS receipt PDFs. Green rows are matched to an invoice and ready. Use
+     <b>Choose</b> on any row to pick a specific invoice or to create the invoice from the receipt.
+     Nothing changes in Manager until you press <b>Copy to Manager</b>.</p>
+  <div class="bar">
+    <label class="filebtn" id="addLabel">1. Add eTIMS receipts (PDF)
+      <input type="file" id="files" accept="application/pdf,.pdf" multiple></label>
+    <button class="primary" id="copy" disabled>2. Copy to Manager</button>
+    <button id="clear">Clear list</button>
+    <button id="report" class="hidden">Download report</button>
+  </div>
+  <div id="status" class="muted" role="status"></div>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Receipt file</th><th>eTIMS number</th><th>Customer on receipt</th>
+        <th>Total (KES)</th><th>Manager invoice</th><th>Status</th><th></th></tr></thead>
+      <tbody id="rows"><tr><td colspan="7" class="muted">No receipts added yet.</td></tr></tbody>
+    </table>
+  </div>
+</section>
+
+<dialog id="chooser">
+  <h1 id="chooserTitle"></h1>
+  <div class="row">
+    <label for="search">Search invoices</label>
+    <input type="text" id="search" class="grow" placeholder="reference, customer, date or amount">
+  </div>
+  <select id="choices" size="8"></select>
+  <div class="row">
+    <button class="primary" id="useInvoice">Use the selected invoice</button>
+    <button id="cancelChoose">Cancel</button>
+  </div>
+  <fieldset>
+    <legend>Or create the invoice in Manager from this receipt</legend>
+    <div class="row">
+      <label for="project">Project</label>
+      <select id="project" class="grow"></select>
+      <label for="reference">Reference (optional)</label>
+      <input type="text" id="reference" size="12">
+      <button id="createInvoice">Create new invoice</button>
+    </div>
+  </fieldset>
+</dialog>
+
+<script type="module">
+import * as pdfjs from "./vendor/pdf.min.js";
+import { parseReceiptText } from "./receipt.js";
+import { Books, money } from "./books.js";
+
+// The only sites allowed to open this page in a window and exchange data with it.
+const MANAGER_ORIGINS = ["https://finance360.laitor.co.ke"];
+
+pdfjs.GlobalWorkerOptions.workerSrc = "./vendor/pdf.worker.min.js";
+const $ = (id) => document.getElementById(id);
+const NO_PROJECT = "(no project)";
+const inFrame = window.self !== window.top;
+
+// Who is showing us? Browsers report it in one of two ways; if neither is available we cannot tell.
+function parentOrigin() {
+  if (location.ancestorOrigins && location.ancestorOrigins.length) return location.ancestorOrigins[0];
+  try { return document.referrer ? new URL(document.referrer).origin : null; } catch { return null; }
+}
+const parentIs = parentOrigin();
+const trusted = !parentIs || MANAGER_ORIGINS.includes(parentIs);
+const target = parentIs && trusted ? parentIs : "*";
+
+// ----- talking to Manager (it makes each call as the logged-in user) -----
+const pending = new Map();
+window.addEventListener("message", (event) => {
+  if (event.source !== window.parent || !event.data) return;
+  if (!trusted || (event.origin !== "null" && !MANAGER_ORIGINS.includes(event.origin))) return;
+  const data = event.data;
+  if (data.type === "page-response") return start();
+  if (data.type !== "api-response") return;
+  const p = pending.get(data.requestId);
+  if (!p) return;
+  pending.delete(data.requestId);
+  clearTimeout(p.timer);
+  if (data.status && data.status >= 400) {
+    const detail = (data.body && (data.body.message || data.body.error)) || data.statusText || "";
+    p.reject(new Error(`Manager refused the request (${data.status}). ${detail}`));
+  } else {
+    p.resolve(data.body);
+  }
+});
+
+function api(method, path, body) {
+  return new Promise((resolve, reject) => {
+    const requestId = crypto.randomUUID();
+    const timer = setTimeout(() => {
+      pending.delete(requestId);
+      reject(new Error("Manager did not answer in time. Check the connection and try again."));
+    }, 60000);
+    pending.set(requestId, { resolve, reject, timer });
+    const msg = { type: "api-request", requestId, path, method };
+    if (body !== undefined) msg.body = body;
+    window.parent.postMessage(msg, target);
+  });
+}
+
+// ----- state -----
+let books = null;
+let started = false;
+const rows = []; // { file, receipt, state, invoice, candidates, note, create, result }
+const READY = ["ready", "chosen", "create"];
+
+function setStatus(text, bad = false) {
+  $("status").textContent = text;
+  $("status").className = bad ? "problem" : "muted";
+}
+
+function start() {
+  if (started) return;
+  started = true;
+  $("app").classList.remove("hidden");
+}
+
+async function ensureBooks() {
+  if (!books) {
+    const b = new Books(api);
+    await b.load(setStatus);
+    books = b;
+  }
+  return books;
+}
+
+function taken(except) {
+  return new Set(rows.filter((r) => r !== except && r.invoice && r.state !== "choose" && r.state !== "none")
+    .map((r) => r.invoice.key));
+}
+
+async function readPdf(file) {
+  const doc = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+  let text = "";
+  for (let p = 1; p <= doc.numPages; p++) {
+    const content = await (await doc.getPage(p)).getTextContent();
+    for (const it of content.items) text += it.str + (it.hasEOL ? "\n" : "");
+    text += "\n";
+  }
+  return parseReceiptText(text);
+}
+
+// ----- drawing the table -----
+function cell(text, cls) {
+  const td = document.createElement("td");
+  td.textContent = text;
+  if (cls) td.className = cls;
+  return td;
+}
+
+function render() {
+  const body = $("rows");
+  body.replaceChildren();
+  if (!rows.length) {
+    const tr = document.createElement("tr");
+    const td = cell("No receipts added yet.", "muted");
+    td.colSpan = 7;
+    tr.append(td);
+    body.append(tr);
+  }
+  for (const r of rows) {
+    const tr = document.createElement("tr");
+    const label = { ready: "Ready to copy", chosen: "Ready to copy (chosen by hand)",
+      create: "Will create a new invoice", applied: r.result || "Copied to Manager" }[r.state] || r.note;
+    const cls = READY.includes(r.state) ? "ready" : (r.state === "applied" || r.state === "done") ? "done" : "problem";
+    const shown = r.state === "create" ? `NEW invoice  |  project: ${r.create.projectName}`
+      : r.invoice && books ? books.describe(r.invoice) : "";
+    tr.append(cell(r.file), cell(r.receipt ? r.receipt.etimsNo : ""),
+      cell(r.receipt ? `${r.receipt.buyerName} (${r.receipt.buyerPin})` : ""),
+      cell(r.receipt ? money(r.receipt.total) : "", "num"), cell(shown), cell(label, cls));
+    const action = document.createElement("td");
+    if (r.receipt && r.state !== "applied" && r.state !== "done") {
+      const btn = document.createElement("button");
+      btn.textContent = "Choose";
+      btn.addEventListener("click", () => openChooser(r));
+      action.append(btn);
+    }
+    tr.append(action);
+    body.append(tr);
+  }
+  const ready = rows.filter((r) => READY.includes(r.state)).length;
+  $("copy").disabled = !ready;
+  if (rows.length) {
+    const attention = rows.filter((r) => r.state === "none" || r.state === "choose").length;
+    setStatus(`${ready} ready to copy, ${attention} need attention.`);
+  }
+}
+
+// ----- adding receipts -----
+$("files").addEventListener("change", async (e) => {
+  const files = [...e.target.files];
+  e.target.value = "";
+  if (!files.length) return;
+  $("addLabel").style.pointerEvents = "none";
+  try {
+    const b = await ensureBooks();
+    const known = new Set(rows.filter((r) => r.receipt).map((r) => r.receipt.etimsNo));
+    for (const [n, file] of files.entries()) {
+      setStatus(`Reading receipt ${n + 1} of ${files.length}...`);
+      try {
+        const receipt = await readPdf(file);
+        if (known.has(receipt.etimsNo)) continue;
+        known.add(receipt.etimsNo);
+        const m = b.match(receipt, taken());
+        rows.push({ file: file.name, receipt, state: m.state, invoice: m.invoice, candidates: m.candidates, note: m.note });
+      } catch (err) {
+        rows.push({ file: file.name, receipt: null, state: "none", note: err.message });
+      }
+    }
+    render();
+  } catch (err) {
+    setStatus("Stopped: " + err.message, true);
+  } finally {
+    $("addLabel").style.pointerEvents = "";
+  }
+});
+
+// ----- choosing a specific invoice, or creating one -----
+let choosing = null;
+let shown = [];
+
+function fillChoices() {
+  const text = $("search").value.trim();
+  const busy = taken(choosing);
+  const found = text ? books.search(text) : (choosing.candidates.length ? choosing.candidates : books.invoices);
+  shown = found.filter((i) => !i.etimsNo && !busy.has(i.key)).slice(0, 300);
+  $("choices").replaceChildren(...shown.map((inv, n) => new Option(books.describe(inv), String(n))));
+}
+
+function openChooser(row) {
+  choosing = row;
+  const r = row.receipt;
+  $("chooserTitle").textContent = `Receipt ${r.etimsNo}: ${r.buyerName}, ${r.date}, KES ${money(r.total)}`;
+  $("search").value = "";
+  $("reference").value = "";
+  $("project").replaceChildren(new Option("Choose a project...", ""),
+    ...books.projects.map((p) => new Option(p.name, p.key)), new Option(NO_PROJECT, "none"));
+  fillChoices();
+  $("chooser").showModal();
+  $("search").focus();
+}
+
+$("search").addEventListener("input", fillChoices);
+$("cancelChoose").addEventListener("click", () => $("chooser").close());
+$("choices").addEventListener("dblclick", () => $("useInvoice").click());
+
+$("useInvoice").addEventListener("click", () => {
+  const inv = shown[$("choices").selectedIndex];
+  if (!inv) return;
+  const r = choosing.receipt;
+  if (Math.abs(inv.total - r.total) > 1 && !confirm(
+    `The invoice total is KES ${money(inv.total)} but the receipt is KES ${money(r.total)}.\n\nUse this invoice anyway?`)) return;
+  Object.assign(choosing, { state: "chosen", invoice: inv, create: null });
+  $("chooser").close();
+  render();
+});
+
+$("createInvoice").addEventListener("click", () => {
+  const sel = $("project");
+  if (!sel.value) { alert(`Choose the project this invoice belongs to (or "${NO_PROJECT}").`); return; }
+  if (!choosing.receipt.lines.length) { alert("The item lines of this receipt could not be read, so the invoice cannot be created from it."); return; }
+  Object.assign(choosing, { state: "create", invoice: null, create: {
+    project: sel.value === "none" ? null : sel.value,
+    projectName: sel.options[sel.selectedIndex].text, reference: $("reference").value.trim() } });
+  $("chooser").close();
+  render();
+});
+
+// ----- writing to Manager -----
+const reportRows = [];
+
+$("copy").addEventListener("click", async () => {
+  const todo = rows.filter((r) => READY.includes(r.state));
+  const creating = todo.filter((r) => r.state === "create").length;
+  if (!todo.length || !confirm(`Copy eTIMS details onto ${todo.length - creating} existing invoice(s) and create ${creating} new invoice(s) in Manager?`)) return;
+  $("copy").disabled = true;
+  let done = 0;
+  for (const [n, r] of todo.entries()) {
+    setStatus(`Copying ${n + 1} of ${todo.length}...`);
+    try {
+      if (r.state === "create") {
+        r.invoice = await books.createInvoice(r.receipt, r.create);
+        r.result = "Created in Manager";
+      } else {
+        await books.apply(r.receipt, r.invoice);
+        r.result = "Copied to Manager";
+      }
+      r.state = "applied";
+      done++;
+    } catch (err) {
+      r.state = "none";
+      r.note = err.message;
+      r.result = err.message;
+    }
+    reportRows.push([r.file, r.receipt.etimsNo, r.receipt.buyerName, r.receipt.total,
+      r.invoice ? (r.invoice.reference || r.invoice.date) : "", r.result]);
+    if (r.state === "none") break; // stop at the first problem rather than carry on blind
+  }
+  render();
+  $("report").classList.remove("hidden");
+  const failed = rows.find((r) => r.state === "none" && r.result);
+  setStatus(`${done} invoice(s) done.` + (failed ? " Stopped: " + failed.note : ""), !!failed);
+});
+
+$("report").addEventListener("click", () => {
+  const quote = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const csv = [["Receipt file", "eTIMS number", "Customer", "Total", "Manager invoice", "Result"], ...reportRows]
+    .map((line) => line.map(quote).join(",")).join("\r\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+  a.download = `etims_import_report_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+$("clear").addEventListener("click", () => {
+  rows.length = 0;
+  books = null; // read Manager again next time so the list is fresh
+  render();
+  setStatus("");
+});
+
+// ----- start -----
+if (inFrame && trusted) {
+  window.parent.postMessage({ type: "page-request" }, target);
+  setTimeout(start, 1500); // show the app even if Manager sends no page details
+} else {
+  $("guide").classList.remove("hidden");
+}
+</script>
+</body>
+</html>
