@@ -1,4 +1,5 @@
 import { createServer } from "node:http";
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -14,6 +15,7 @@ const types = {
   ".json": "application/json; charset=utf-8",
   ".svg": "image/svg+xml",
   ".png": "image/png",
+  ".jpg": "image/jpeg",
 };
 
 // ----- branded customer portal -----
@@ -25,8 +27,18 @@ const PORTAL_PAGE = /^customer-portal(-(quotes|orders|invoices|credit-notes|deli
 const PORTAL_TOKEN = /^[A-Za-z0-9_-]{20,300}$/;
 const INTERNAL_FIELDS = ["Portal URL", "Portal Status", "Portal ID", "Customer Type"];   // never shown to customers
 
+// Cloudflare hides email addresses behind a script; the script is stripped here, so decode them.
+function email(hex) {
+  const key = parseInt(hex.slice(0, 2), 16);
+  return hex.slice(2).replace(/../g, (b) => String.fromCharCode(parseInt(b, 16) ^ key));
+}
+
 export function restyle(html) {
+  // Manager only serves the logo to signed-in users, so the portal shows its own copy (logo.jpg).
+  const logo = existsSync(join(root, "logo.jpg")) ? '<img src="/logo.jpg" alt="">' : "";
   html = html
+    .replace(/<a[^>]*data-cfemail="([0-9a-f]+)"[^>]*>[\s\S]*?<\/a>/gi, (_, hex) => email(hex))
+    .replace(/<img[^>]*\/api4\/business-logo[^>]*>/g, logo)
     .replace(/<script\b[\s\S]*?<\/script>/gi, "")
     .replace(/(href|src)="\/(resources|api4)\//g, `$1="${MANAGER}/$2/`)
     .replace(/href="favicon\.ico"/g, `href="${MANAGER}/favicon.ico"`)
