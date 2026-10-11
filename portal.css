@@ -1,0 +1,54 @@
+/* Restyles Manager's customer portal pages to match the LIC Standard document theme.
+   Manager writes its layout as inline styles, so these rules need !important to win. */
+:root { --ink: #1c2430; --muted: #5b6675; --line: #dfe3e8; --brand: #12355b; }
+
+body { background: #f5f5f5 !important; color: var(--ink); font-family: Arial, Helvetica, sans-serif; }
+
+/* Top bar and side menu */
+.navbar { background: var(--brand) !important; border-color: var(--brand) !important; box-shadow: none !important; border-radius: 6px 6px 0 0; }
+.navbar-brand { color: #fff !important; text-shadow: none !important; }
+.list-group-item { box-shadow: none !important; }
+.list-group-item span span { color: var(--brand) !important; font-size: .8rem !important; }
+.list-group-item .fas { color: var(--muted) !important; }
+.rounded-top.border { background: #fff !important; box-shadow: none !important; color: var(--muted) !important; text-shadow: none !important; }
+.rounded-top.border .btn { background: var(--brand) !important; border-color: var(--brand) !important; color: #fff !important; }
+.d-print-reset { background: #fff !important; box-shadow: none !important; }
+
+/* Lists of documents */
+table.table th { color: var(--brand); border-bottom: 2px solid var(--brand) !important; }
+table.table a, .col a { color: var(--brand); }
+
+/* The document itself */
+main { font: 12px/1.5 Arial, Helvetica, sans-serif; color: var(--ink); width: 100%; border-color: #e5e5e5 !important;
+       border-radius: 5px; padding: 28px !important; gap: 14px !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+main > header { flex-direction: row-reverse; align-items: center !important; padding-bottom: 14px; border-bottom: 3px solid var(--brand); }
+main > header h1 { font-size: 24px !important; letter-spacing: .5px; text-transform: uppercase; color: var(--brand); }
+main > header img { max-height: 84px !important; max-width: 240px !important; }
+main > section { gap: 24px !important; }
+main > section > div[style*="border-left"] { display: none; }               /* the vertical divider */
+main > section address { color: var(--muted); }
+main > section address strong { color: var(--ink); font-size: 13px; }
+main > section address:last-child { text-align: right; }
+main > section address:last-child strong { color: var(--brand); font-size: 14px; }
+main > section dl { text-align: left !important; display: grid !important; grid-template-columns: auto 1fr; column-gap: 12px; align-content: start; }
+main > section dl dt { margin: 0 !important; color: var(--muted); white-space: nowrap; }
+main > section dl dt strong { font-weight: normal; }
+main > section dl dd { margin: 0 0 2px !important; text-align: right; font-weight: bold; overflow-wrap: anywhere; }
+
+main > table { width: 100% !important; border: 0 !important; }
+main > table th { background: var(--brand); color: #fff; border: 0 !important; padding: 7px 8px !important; font-size: 11px; }
+main > table td { border: 0 !important; border-bottom: 1px solid var(--line) !important; padding: 7px 8px !important; }
+main > table tr:has(> td:only-child), main > table td[colspan] { border-bottom: 0 !important; }
+main > table td[colspan] + td { border-bottom: 0 !important; }
+main > table tr:last-child td { font-size: 14px; color: var(--brand); border-top: 2px solid var(--brand) !important; border-bottom: 2px solid var(--brand) !important; }
+
+main > dl { margin: 0; }
+main > dl dt { font-size: 10px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); }
+main > dl dt strong { font-weight: normal; }
+main > dl dd { margin-bottom: 8px !important; }
+main > div:has(> p), main > div:has(> table) { margin-top: 6px; padding-top: 12px; border-top: 1px solid var(--line); }
+main > div table { margin: 8px 0; }
+main > div[style*="justify-content: center"] > div { border-width: 1.5px !important; border-radius: 4px; padding: 3px 10px !important; font-size: 11px !important; font-weight: bold; }
+
+.lic-foot { margin: 16px 0 0; color: var(--muted); font-size: 12px; text-align: center; }
+@media print { .lic-foot { display: none; } main { padding: 0 !important; } }
