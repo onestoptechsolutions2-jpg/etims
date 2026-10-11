@@ -1,29 +1,65 @@
-/* Restyles Manager's customer portal pages to match the LIC Standard document theme.
-   Manager writes its layout as inline styles, so these rules need !important to win. */
-:root { --ink: #1c2430; --muted: #5b6675; --line: #dfe3e8; --brand: #12355b; }
+/* The branded customer portal. server.js lays the page out; the document itself (inside <main>)
+   is Manager's own markup with inline styles, so those rules need !important to win. */
+:root { --ink: #1c2430; --muted: #5b6675; --line: #dfe3e8; --brand: #12355b; --accent: #1f9d8a; --bg: #f3f5f8; }
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 Arial, Helvetica, sans-serif; }
+a { color: var(--brand); }
+.wrap { max-width: 960px; margin: 0 auto; padding: 0 16px; }
 
-body { background: #f5f5f5 !important; color: var(--ink); font-family: Arial, Helvetica, sans-serif; }
+/* Top bar */
+.top { background: var(--brand); color: #fff; }
+.top .wrap { display: flex; align-items: center; gap: 14px; padding-top: 14px; padding-bottom: 14px; }
+.top img { height: 46px; width: auto; background: #fff; border-radius: 6px; padding: 4px; flex: none; }
+.top strong { display: block; font-size: 17px; line-height: 1.25; }
+.top span { display: block; font-size: 13px; opacity: .8; overflow-wrap: anywhere; }
 
-/* Top bar and side menu */
-.navbar { background: var(--brand) !important; border-color: var(--brand) !important; box-shadow: none !important; border-radius: 6px 6px 0 0; }
-.navbar-brand { color: #fff !important; text-shadow: none !important; }
-.list-group-item { box-shadow: none !important; }
-.list-group-item span span { color: var(--brand) !important; font-size: .8rem !important; }
-.list-group-item .fas { color: var(--muted) !important; }
-.rounded-top.border { background: #fff !important; box-shadow: none !important; color: var(--muted) !important; text-shadow: none !important; }
-.rounded-top.border .btn { background: var(--brand) !important; border-color: var(--brand) !important; color: #fff !important; }
-.d-print-reset { background: #fff !important; box-shadow: none !important; }
+/* Sections */
+.tabs { background: #fff; border-bottom: 1px solid var(--line); }
+.tabs .wrap { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; }
+.tabs .wrap::-webkit-scrollbar { display: none; }
+.tabs a { flex: none; padding: 12px 12px 10px; color: var(--muted); text-decoration: none; font-weight: bold; font-size: 14px;
+          border-bottom: 3px solid transparent; white-space: nowrap; }
+.tabs a:hover { color: var(--brand); }
+.tabs a.here { color: var(--brand); border-bottom-color: var(--accent); }
+.tabs b { margin-left: 6px; padding: 1px 7px; border-radius: 10px; background: var(--bg); color: var(--muted); font-size: 12px; }
+.tabs a.here b { background: var(--brand); color: #fff; }
+
+/* The white sheet everything sits on */
+.sheet { background: #fff; border: 1px solid var(--line); border-radius: 8px; margin: 20px 0 0; padding: 22px; }
+.sheet h2 { margin: 0 0 14px; font-size: 18px; color: var(--brand); }
+.empty { margin: 0; color: var(--muted); }
+.scroll { overflow-x: auto; }
+.button { display: inline-block; padding: 6px 14px; border: 1px solid var(--brand); border-radius: 5px; background: #fff; color: var(--brand);
+          font: bold 13px Arial, Helvetica, sans-serif; text-decoration: none; cursor: pointer; white-space: nowrap; }
+.button.main, .button:hover { background: var(--brand); color: #fff; }
+.bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.bar h2 { margin: 0; }
+
+/* Customer details */
+.details { margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px 24px; }
+.details dt { font-size: 11px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); }
+.details dd { margin: 2px 0 0; font-weight: bold; overflow-wrap: anywhere; }
 
 /* Lists of documents */
-table.table th { color: var(--brand); border-bottom: 2px solid var(--brand) !important; }
-table.table a, .col a { color: var(--brand); }
+.list { width: 100%; border-collapse: collapse; font-size: 14px; }
+.list th { text-align: left; padding: 8px 10px; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted);
+           border-bottom: 2px solid var(--brand); white-space: nowrap; }
+.list td { padding: 10px; border-bottom: 1px solid var(--line); }
+.list .num { text-align: right; white-space: nowrap; }
+.list .open { width: 1%; }
+.status { display: inline-block; padding: 2px 10px; border-radius: 10px; background: var(--bg); color: var(--muted); font-size: 12px; font-weight: bold; white-space: nowrap; }
+.status.bad { background: #fdecec; color: #b42318; }
+.status.good { background: #e6f6ee; color: #18794e; }
+.status.due { background: #fff4d6; color: #8a5a00; }
 
 /* The document itself */
-main { font: 12px/1.5 Arial, Helvetica, sans-serif; color: var(--ink); width: 100%; border-color: #e5e5e5 !important;
-       border-radius: 5px; padding: 28px !important; gap: 14px !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+main { display: flex; flex-direction: column; gap: 14px; min-width: 560px; font: 12px/1.5 Arial, Helvetica, sans-serif; color: var(--ink);
+       -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+main p { margin: 0 0 10px; }
 main > header { flex-direction: row-reverse; align-items: center !important; padding-bottom: 14px; border-bottom: 3px solid var(--brand); }
 main > header h1 { font-size: 24px !important; letter-spacing: .5px; text-transform: uppercase; color: var(--brand); }
-main > header img { max-height: 84px !important; max-width: 240px !important; }
+main > header img { max-height: 84px; max-width: 240px; }
 main > section { gap: 24px !important; }
 main > section > div[style*="border-left"] { display: none; }               /* the vertical divider */
 main > section address { color: var(--muted); }
@@ -35,20 +71,52 @@ main > section dl dt { margin: 0 !important; color: var(--muted); white-space: n
 main > section dl dt strong { font-weight: normal; }
 main > section dl dd { margin: 0 0 2px !important; text-align: right; font-weight: bold; overflow-wrap: anywhere; }
 
-main > table { width: 100% !important; border: 0 !important; }
+main > table { width: 100% !important; min-width: 0 !important; border: 0 !important; border-collapse: collapse; }
 main > table th { background: var(--brand); color: #fff; border: 0 !important; padding: 7px 8px !important; font-size: 11px; }
 main > table td { border: 0 !important; border-bottom: 1px solid var(--line) !important; padding: 7px 8px !important; }
-main > table tr:has(> td:only-child), main > table td[colspan] { border-bottom: 0 !important; }
-main > table td[colspan] + td { border-bottom: 0 !important; }
+main > table td[colspan], main > table td[colspan] + td { border-bottom: 0 !important; }
 main > table tr:last-child td { font-size: 14px; color: var(--brand); border-top: 2px solid var(--brand) !important; border-bottom: 2px solid var(--brand) !important; }
 
 main > dl { margin: 0; }
 main > dl dt { font-size: 10px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); }
 main > dl dt strong { font-weight: normal; }
-main > dl dd { margin-bottom: 8px !important; }
+main > dl dd { margin: 0 0 8px !important; }
 main > div:has(> p), main > div:has(> table) { margin-top: 6px; padding-top: 12px; border-top: 1px solid var(--line); }
-main > div table { margin: 8px 0; }
+main > div table { margin: 8px 0; border-color: var(--line); }
+main > div table th, main > div table td { border-color: var(--line); padding: 7px 8px; vertical-align: top; }
 main > div[style*="justify-content: center"] > div { border-width: 1.5px !important; border-radius: 4px; padding: 3px 10px !important; font-size: 11px !important; font-weight: bold; }
 
-.lic-foot { margin: 16px 0 0; color: var(--muted); font-size: 12px; text-align: center; }
-@media print { .lic-foot { display: none; } main { padding: 0 !important; } }
+.foot { margin: 16px 0 28px; color: var(--muted); font-size: 13px; text-align: center; }
+
+/* Phones: each listed document becomes a card, and the document's header blocks stack */
+@media (max-width: 640px) {
+  .sheet { padding: 16px; margin-top: 14px; }
+  .list thead { display: none; }
+  .list, .list tbody, .list tr, .list td { display: block; width: auto; }
+  .list tr { border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; margin-bottom: 12px; }
+  .list td { display: flex; justify-content: space-between; gap: 16px; padding: 6px 0; border-bottom: 1px solid var(--line); text-align: right; }
+  .list td:last-child { border-bottom: 0; }
+  .list td::before { content: attr(data-label); color: var(--muted); font-size: 12px; text-align: left; }
+  .list td:empty { display: none; }
+  .list td.open { order: 9; border-bottom: 0; padding-top: 10px; }
+  .list td.open::before { content: none; }
+  .list td.open .button { flex: 1; text-align: center; padding: 9px; background: var(--brand); color: #fff; }
+  .list tr { display: flex; flex-direction: column; }
+  main { min-width: 0; }
+  main > header h1 { font-size: 20px !important; }
+  main > header img { max-height: 60px; }
+  main > section { flex-direction: column; gap: 12px !important; }
+  main > section > * { width: 100%; flex: none !important; }
+  main > section address { white-space: normal !important; }
+  main > section address:last-child { text-align: left; order: -1; }
+  main > table th, main > table td { padding: 6px 5px !important; }
+  .bar .button { flex: 1; text-align: center; padding: 10px; }
+}
+
+@media print {
+  .top, .tabs, .bar, .foot { display: none; }
+  body { background: #fff; }
+  .wrap { max-width: none; padding: 0; }
+  .sheet { border: 0; margin: 0; padding: 0; }
+  .scroll { overflow: visible; }
+}
