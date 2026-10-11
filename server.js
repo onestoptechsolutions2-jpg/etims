@@ -72,18 +72,79 @@ function list(body) {
     + `</tr></thead><tbody>${rows.join("")}</tbody></table></div>`;
 }
 
-// One document. Manager's own markup is kept (portal.css restyles it), minus what customers should not see.
+// One document, laid out the way the "LIC Standard" theme lays it out inside Manager (the theme
+// itself cannot run here: it reads the document from Manager, which needs a signed-in user).
+// Keep the field sorting below in step with themes/lic-standard.html.
+const lines = (html) => html.replace(/<(?!br\b)[^>]+>/g, "").replace(/^(\s|<br\s*\/?>)+|(\s|<br\s*\/?>)+$/g, "");
+const pairs = (dl) => [...(dl || "").matchAll(/<dt[^>]*>([\s\S]*?)<\/dt>\s*<dd[^>]*>([\s\S]*?)<\/dd>/g)]
+  .map(([, label, value]) => ({ label: text(label), text: text(value), custom: /<data value="[0-9a-f-]{36}"/.test(label) }));
+const alignOf = (attrs) => /text-align: (right|end)/.test(attrs) ? "right" : /text-align: center/.test(attrs) ? "center" : "left";
+
 function paper(main, title) {
   const logo = existsSync(join(root, "logo.jpg")) ? '<img src="/logo.jpg" alt="">' : "";
-  main = main
-    .replace(/<img\b[^>]*\/api4\/business-logo[^>]*>/g, logo)   // Manager serves the logo only to signed-in users
-    .replace(/<tr>(?:<td style="border: 1px solid #000; border-top: none">&nbsp;<\/td>)+<\/tr>/g, "");   // spacer row
-  for (const label of INTERNAL_FIELDS) {
-    main = main.replace(new RegExp(
-      `<dt[^>]*>\\s*(?:<data[^>]*>\\s*<strong>|<strong>\\s*<data[^>]*>)\\s*${label}\\s*(?:</strong>\\s*</data>|</data>\\s*</strong>)\\s*</dt>\\s*<dd[^>]*>[\\s\\S]*?</dd>`, "g"), "");
+  const header = (main.match(/<section\b[^>]*>([\s\S]*?)<\/section>/) || [])[1] || "";
+  const parties = [...header.matchAll(/<address[^>]*>\s*<div>([\s\S]*?)<\/div>\s*<div>([\s\S]*?)<\/div>\s*<\/address>/g)]
+    .map(([, name, details]) => ({ name: text(name), details: lines(details) }));
+  const to = parties.length > 1 ? parties[0] : null, business = parties[parties.length - 1] || { name: BUSINESS, details: "" };
+  const at = main.indexOf("<table"), tableEnd = main.indexOf("</table>", at);
+  const table = at < 0 ? "" : main.slice(at, tableEnd);
+  let rest = at < 0 ? "" : main.slice(tableEnd + 8);
+
+  // Fields are sorted into: eTIMS details, the customer's PIN and phone, header fields, and body fields.
+  const etims = [], top = [], body = [];
+  let qr = "", pin = "", phone = "";
+  const below = rest.match(/^\s*<dl[^>]*>([\s\S]*?)<\/dl>/);
+  if (below) rest = rest.slice(below[0].length);
+  const fields = pairs((header.match(/<dl[^>]*>([\s\S]*?)<\/dl>/) || [])[1]).map((f) => ({ ...f, top: true }))
+    .concat(pairs(below && below[1]));
+  for (const f of fields) {
+    if (!f.text || INTERNAL_FIELDS.includes(f.label)) continue;
+    if (/\bqr\b/i.test(f.label) || /^https?:\/\/etims\.kra\.go\.ke/i.test(f.text)) qr = f.text;
+    else if (/etims|scu|device serial/i.test(f.label)) etims.push(f);
+    else if (/^kra pin$/i.test(f.label)) pin = f.text;
+    else if (/^(phone|telephone|mobile)/i.test(f.label)) phone = f.text;
+    else if (!f.custom || (f.top && f.text.length <= 40 && !/^https?:/i.test(f.text))) top.push(f);
+    else body.push(f);
   }
+
+  // Lines, then the totals (Manager writes those as rows that span the columns)
+  const cols = [...((table.match(/<thead>([\s\S]*?)<\/thead>/) || [])[1] || "").matchAll(/<th\b([^>]*)>([\s\S]*?)<\/th>/g)]
+    .map(([, attrs, label]) => ({ label: text(label), align: alignOf(attrs), nowrap: /nowrap/.test(attrs) }));
+  let rows = "", totals = "";
+  for (const [, row] of ((table.match(/<tbody>([\s\S]*?)<\/tbody>/) || [])[1] || "").matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/g)) {
+    const cells = [...row.matchAll(/<td\b([^>]*)>([\s\S]*?)<\/td>/g)];
+    if (cells.every(([, , cell]) => !text(cell))) continue;   // spacer row
+    if (/colspan=/.test(cells[0][1])) {
+      totals += `<tr${/font-weight: bold/.test(cells[0][1]) ? ' class="strong"' : ""}><td>${text(cells[0][2])}</td><td>${text((cells[1] || [])[2] || "")}</td></tr>`;
+    } else {
+      rows += "<tr>" + cells.map(([, , cell], i) => `<td${(cols[i] || {}).nowrap ? ' class="nowrap"' : ""} style="text-align:${(cols[i] || {}).align || "left"}">${lines(cell)}</td>`).join("") + "</tr>";
+    }
+  }
+
+  const stamp = rest.match(/<div style="text-align: center; display: flex; justify-content: center"><div style="([^"]*)">([\s\S]*?)<\/div><\/div>\s*$/);
+  if (stamp) rest = rest.slice(0, stamp.index);
+  const tone = !stamp ? "" : /color: red/.test(stamp[1]) ? "negative" : /color: green/.test(stamp[1]) ? "positive" : "";
+  const tel = business.details.match(/(?:\+?254|0)\d{9}\b/), mail = business.details.match(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/);
+  const toDetails = to ? [to.details, phone, pin ? "PIN: " + pin : ""].filter(Boolean).join("<br>") : "";
+
   return `<div class="bar"><h2>${title}</h2><button class="button main" onclick="print()">Print or save as PDF</button></div>`
-    + `<div class="scroll"><main>${main}</main></div>`;
+    + '<div class="scroll"><article class="paper">'
+    + `<div class="head"><div class="logo">${logo}</div><div class="biz"><div class="biz-name">${business.name}</div><div class="muted">${business.details}</div></div></div>`
+    + `<div class="titlebar"><h1>${title}</h1>${stamp ? `<span class="stamp ${tone}">${text(stamp[2])}</span>` : ""}</div>`
+    + '<div class="parties">'
+    + (to ? `<div class="party"><div class="label">To</div><div class="name">${to.name}</div><div class="muted">${toDetails}</div></div>` : "")
+    + `<div class="meta"><table><tbody>${top.map((f) => `<tr><td>${f.label}</td><td>${f.text}</td></tr>`).join("")}</tbody></table></div></div>`
+    + `<table class="items"><thead><tr>${cols.map((c) => `<th${c.nowrap ? ' class="nowrap"' : ""} style="text-align:${c.align}">${c.label}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table>`
+    + `<div class="totals"><table><tbody>${totals}</tbody></table></div>`
+    + (etims.length || qr ? `<div class="etims">${qr ? `<div class="qr" id="qr" data-text="${qr.replace(/"/g, "&quot;")}"></div>` : ""}<div><div class="name">KRA eTIMS</div>`
+      + etims.map((f) => `<div class="label">${f.label}</div><div class="value">${f.text}</div>`).join("") + "</div></div>" : "")
+    + (body.length ? `<div class="extra">${body.map((f) => `<div><div class="label">${f.label}</div><div>${f.text}</div></div>`).join("")}</div>` : "")
+    + (text(rest) ? `<div class="footers">${rest}</div>` : "")
+    + '<div class="share">'
+    + (tel ? `<a target="_blank" rel="noopener" href="https://wa.me/${tel[0].replace(/^\+/, "").replace(/^0/, "254")}">Chat on WhatsApp</a>` : "")
+    + (mail ? `<a href="mailto:${mail[0]}?subject=${encodeURIComponent([title, (top.find((f) => /number|reference/i.test(f.label)) || {}).text].filter(Boolean).join(" "))}">Email us</a>` : "")
+    + "</div></article></div>"
+    + (qr ? '<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script><script src="/portal-qr.js"></script>' : "");
 }
 
 export function restyle(html) {
@@ -108,7 +169,7 @@ export function restyle(html) {
   const phone = CONTACT_PHONE.replace(/\D/g, "").replace(/^0/, "254");
   return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>${customer ? customer + " | " : ""}${BUSINESS}</title>`
     + '<meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">'
-    + '<link rel="icon" href="/logo.jpg"><link rel="stylesheet" href="/portal.css?v=2"></head><body>'
+    + '<link rel="icon" href="/logo.jpg"><link rel="stylesheet" href="/portal.css?v=3"></head><body>'
     + `<header class="top"><div class="wrap">${logo}<div><strong>${BUSINESS}</strong><span>Customer portal${customer ? " &middot; " + customer : ""}</span></div></div></header>`
     + `<nav class="tabs"><div class="wrap">${menu}</div></nav>`
     + `<div class="wrap"><section class="sheet${main ? " doc" : ""}">${content}</section>`

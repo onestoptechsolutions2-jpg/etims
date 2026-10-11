@@ -1,5 +1,5 @@
-/* The branded customer portal. server.js lays the page out; the document itself (inside <main>)
-   is Manager's own markup with inline styles, so those rules need !important to win. */
+/* The branded customer portal. server.js lays the page out; the document itself
+   is laid out by server.js to match the document theme used inside Manager. */
 :root { --ink: #1c2430; --muted: #5b6675; --line: #dfe3e8; --brand: #12355b; --accent: #1f9d8a; --bg: #f3f5f8; }
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
@@ -53,38 +53,55 @@ a { color: var(--brand); }
 .status.good { background: #e6f6ee; color: #18794e; }
 .status.due { background: #fff4d6; color: #8a5a00; }
 
-/* The document itself */
-main { display: flex; flex-direction: column; gap: 14px; min-width: 560px; font: 12px/1.5 Arial, Helvetica, sans-serif; color: var(--ink);
-       -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-main p { margin: 0 0 10px; }
-main > header { flex-direction: row-reverse; align-items: center !important; padding-bottom: 14px; border-bottom: 3px solid var(--brand); }
-main > header h1 { font-size: 24px !important; letter-spacing: .5px; text-transform: uppercase; color: var(--brand); }
-main > header img { max-height: 84px; max-width: 240px; }
-main > section { gap: 24px !important; }
-main > section > div[style*="border-left"] { display: none; }               /* the vertical divider */
-main > section address { color: var(--muted); }
-main > section address strong { color: var(--ink); font-size: 13px; }
-main > section address:last-child { text-align: right; }
-main > section address:last-child strong { color: var(--brand); font-size: 14px; }
-main > section dl { text-align: left !important; display: grid !important; grid-template-columns: auto 1fr; column-gap: 12px; align-content: start; }
-main > section dl dt { margin: 0 !important; color: var(--muted); white-space: nowrap; }
-main > section dl dt strong { font-weight: normal; }
-main > section dl dd { margin: 0 0 2px !important; text-align: right; font-weight: bold; overflow-wrap: anywhere; }
-
-main > table { width: 100% !important; min-width: 0 !important; border: 0 !important; border-collapse: collapse; }
-main > table th { background: var(--brand); color: #fff; border: 0 !important; padding: 7px 8px !important; font-size: 11px; }
-main > table td { border: 0 !important; border-bottom: 1px solid var(--line) !important; padding: 7px 8px !important; }
-main > table td[colspan], main > table td[colspan] + td { border-bottom: 0 !important; }
-main > table tr:last-child td { font-size: 14px; color: var(--brand); border-top: 2px solid var(--brand) !important; border-bottom: 2px solid var(--brand) !important; }
-
-main > dl { margin: 0; }
-main > dl dt { font-size: 10px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); }
-main > dl dt strong { font-weight: normal; }
-main > dl dd { margin: 0 0 8px !important; }
-main > div:has(> p), main > div:has(> table) { margin-top: 6px; padding-top: 12px; border-top: 1px solid var(--line); }
-main > div table { margin: 8px 0; border-color: var(--line); }
-main > div table th, main > div table td { border-color: var(--line); padding: 7px 8px; vertical-align: top; }
-main > div[style*="justify-content: center"] > div { border-width: 1.5px !important; border-radius: 4px; padding: 3px 10px !important; font-size: 11px !important; font-weight: bold; }
+/* The document itself: the same look as the "LIC Standard" theme (themes/lic-standard.html) */
+.paper { font: 12px/1.5 Arial, Helvetica, sans-serif; color: var(--ink); min-width: 620px;
+         -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.paper table { width: 100%; border-collapse: collapse; }
+.paper .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px;
+               padding-bottom: 14px; border-bottom: 3px solid var(--brand); }
+.paper .logo img { max-height: 84px; max-width: 240px; display: block; }
+.paper .biz { text-align: right; }
+.paper .biz-name { font-size: 16px; font-weight: bold; color: var(--brand); }
+.paper .muted { color: var(--muted); }
+.paper .titlebar { display: flex; justify-content: space-between; align-items: center; margin: 18px 0 4px; }
+.paper h1 { margin: 0; font-size: 24px; letter-spacing: .5px; text-transform: uppercase; color: var(--brand); }
+.paper .stamp { padding: 3px 10px; border: 1.5px solid; border-radius: 4px; font-size: 11px;
+                font-weight: bold; text-transform: uppercase; color: var(--muted); }
+.paper .stamp.negative { color: #b42318; }
+.paper .stamp.positive { color: #0a6b2d; }
+.paper .parties { display: flex; gap: 24px; margin: 12px 0 16px; }
+.paper .party { flex: 1; }
+.paper .label { font-size: 10px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin-bottom: 2px; }
+.paper .name { font-size: 13px; font-weight: bold; }
+.paper .meta { flex: 0 0 310px; margin-left: auto; }
+.paper .meta td { padding: 2px 0; vertical-align: top; }
+.paper .meta td:first-child { color: var(--muted); padding-right: 12px; white-space: nowrap; }
+.paper .meta td:last-child { text-align: right; font-weight: bold; overflow-wrap: anywhere; }
+.paper .items th { background: var(--brand); color: #fff; padding: 7px 8px; font-size: 11px; text-align: left; }
+.paper .items td { padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.paper .items tr { page-break-inside: avoid; }
+.paper .nowrap { white-space: nowrap; }
+.paper .totals { display: flex; justify-content: flex-end; margin-top: 10px; page-break-inside: avoid; }
+.paper .totals table { width: auto; min-width: 290px; }
+.paper .totals td { padding: 4px 8px; }
+.paper .totals td:last-child { text-align: right; white-space: nowrap; }
+.paper .totals tr.strong td { font-size: 14px; font-weight: bold; color: var(--brand);
+                              border-top: 2px solid var(--brand); border-bottom: 2px solid var(--brand); }
+.paper .etims { display: flex; gap: 16px; align-items: center; margin-top: 18px; padding: 10px 12px;
+                border: 1px solid var(--line); border-radius: 6px; page-break-inside: avoid; }
+.paper .etims .qr svg { width: 96px; height: 96px; display: block; }
+.paper .etims .label { margin-top: 4px; }
+.paper .etims .value { font-weight: bold; word-break: break-all; }
+.paper .extra { margin-top: 12px; }
+.paper .extra > div { margin-bottom: 8px; }
+.paper .footers { margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--line); page-break-inside: avoid; }
+.paper .footers p { margin: 12px 0; }
+.paper .footers table { margin: 8px 0; }
+.paper .footers td, .paper .footers th { padding: 6px 8px; }
+.paper .share { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 8px; page-break-inside: avoid; }
+.paper .share a { padding: 7px 12px; border: 1px solid var(--brand); border-radius: 5px; font-weight: bold;
+                  color: var(--brand); text-decoration: none; }
+.paper .share a.main { background: var(--brand); color: #fff; }
 
 .foot { margin: 16px 0 28px; color: var(--muted); font-size: 13px; text-align: center; }
 
@@ -102,14 +119,15 @@ main > div[style*="justify-content: center"] > div { border-width: 1.5px !import
   .list td.open::before { content: none; }
   .list td.open .button { flex: 1; text-align: center; padding: 9px; background: var(--brand); color: #fff; }
   .list tr { display: flex; flex-direction: column; }
-  main { min-width: 0; }
-  main > header h1 { font-size: 20px !important; }
-  main > header img { max-height: 60px; }
-  main > section { flex-direction: column; gap: 12px !important; }
-  main > section > * { width: 100%; flex: none !important; }
-  main > section address { white-space: normal !important; }
-  main > section address:last-child { text-align: left; order: -1; }
-  main > table th, main > table td { padding: 6px 5px !important; }
+  .paper { min-width: 0; }
+  .paper .head { gap: 12px; }
+  .paper .logo img { max-height: 56px; }
+  .paper .biz-name { font-size: 14px; }
+  .paper h1 { font-size: 20px; }
+  .paper .parties { flex-direction: column; gap: 12px; }
+  .paper .meta { flex: none; margin: 0; width: 100%; }
+  .paper .items th, .paper .items td { padding: 6px 5px; }
+  .paper .totals table { min-width: 0; width: 100%; }
   .bar .button { flex: 1; text-align: center; padding: 10px; }
 }
 
